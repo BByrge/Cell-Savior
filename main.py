@@ -47,6 +47,7 @@ def recommend():
         return ERROR_400, 400
     provided_fields = []
 
+    # Get all provided fields. If only lines is provided, return all plans
     for field in data:
         provided_fields.append(field)
     # If only lines is provided, return all plans
@@ -90,6 +91,7 @@ def recommend():
         for i in results:
             if i['carrier'] not in data['carriers']:
                 results.remove(i)
+
     return jsonify(results), 200
 
 # Admin only routes. Auth will be added later.
