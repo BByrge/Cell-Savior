@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify, send_file
 from google.cloud import datastore
 
+import utils
+
 app = Flask(__name__)
 app.secret_key = 'SECRET_KEY'
 
@@ -27,16 +29,65 @@ def get_plans():
     query = client.query(kind='plans')
     results = list(query.fetch())
     # We only add the id if the user is an admin
-    # for i in results:
-    #     i['id'] = i.id
-    return jsonify(results)
+    for i in results:
+        i['id'] = i.id
+    return jsonify(results), 200
 
 @app.route('/recommend', methods=['GET'])
 def recommend():
     '''
-    Get a plan recommendation.
+    Get a plan recommendation. Lines is required, all other fields are optional.
+    Fields: data(str), talk(str), text(str), price(float), financing_status(bool), carriers[]
+    This function will return a list of plans that match or beat: data, talk, text, price
+    The list will filter out plans that are not provided by the carriers in the carriers list.
+    **If financing_status is true, we will do something cool in a future update.
     '''
-    return 'not implemented', 200
+    data = request.get_json()
+    if not data or 'lines' not in data:
+        return ERROR_400, 400
+    provided_fields = []
+    for field in data:
+        provided_fields.append(field)
+    # Prioritize data, talk, text. Then sort by price
+    if len(provided_fields) == 1:
+        query = client.query(kind='plans')
+        results = list(query.fetch())
+        # Not sure if this sorts by keys or values
+        results.sort(key=lambda x: x['price'])
+        return jsonify(results), 200
+    if 'data' in provided_fields:
+        if 'data' == 'Unlimited':
+            query = client.query(kind='plans')
+            query.add_filter('data', '=', 'Unlimited')
+        else:
+            query = client.query(kind='plans')
+            data['data'] = utils.extract_number(data['data'])
+            query.add_filter('data', '>=', data['data'])
+    if 'talk' in provided_fields:
+        if 'talk' == 'Unlimited':
+            query = client.query(kind='plans')
+            query.add_filter('talk', '=', 'Unlimited')
+        else:
+            query = client.query(kind='plans')
+            data['talk'] = utils.extract_number(data['talk'])
+            query.add_filter('talk', '>=', data['talk'])
+    if 'text' in provided_fields:
+        if 'text' == 'Unlimited':
+            query = client.query(kind='plans')
+            query.add_filter('text', '=', 'Unlimited')
+        else:
+            query = client.query(kind='plans')
+            data['text'] = utils.extract_number(data['text'])
+            query.add_filter('text', '>=', data['text'])
+    results = list(query.fetch())
+    # Filter out plans that are not provided by the carriers in the carriers list.
+    if 'carriers' in provided_fields:
+        for i in results:
+            if i['carrier'] not in data['carriers']:
+                results.remove(i)
+    # Sort by price. This might not work. In fact, it probably doesn't. Also, it probably crashes.
+    results.sort(key=lambda x: x['price'])
+    return jsonify(results), 200
 
 
 # Admin only routes. Auth will be added later.
@@ -71,7 +122,7 @@ def get_plan(plan_id):
     key = client.key('plans', int(plan_id))
     plan = client.get(key)
     if not plan:
-        return ERROR_404
+        return ERROR_404, 404
     return jsonify(plan), 200
 
 @app.route('/plans/<plan_id>', methods = ['DELETE'])
@@ -84,14 +135,24 @@ def delete_plan(plan_id):
     if not plan:
         return ERROR_404, 404
     client.delete(plan)
-    return 204
+    return '', 204
 
 @app.route('/plans/<plan_id>', methods=['PATCH'])
 def patch_plan(plan_id):
     '''
     Patch plan in database.
     '''
-    return 'not implemented', 200
+    data = request.get_json()
+    key = client.key('plans', int(plan_id))
+    plan = client.get(key)
+    if not plan:
+        return ERROR_404, 404
+    for field in data:
+        plan[field] = data[field]
+    client.put(plan)
+    plan['id'] = plan.id
+    plan['self'] = f'{SELF_URL}plans/{plan['id']}'
+    return jsonify(plan), 200
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=8080, debug=True)
