@@ -7,7 +7,7 @@ app = Flask(__name__)
 app.secret_key = 'SECRET_KEY'
 
 client = datastore.Client()
-
+# SELF_URL = 'https://cellularsavior-442cf.uc.r.appspot.com/'
 SELF_URL = 'http://127.0.0.1:8080/'
 
 ERROR_400 = {"Error": "The request body is invalid"}
@@ -38,7 +38,7 @@ def recommend():
     '''
     Get a plan recommendation. Lines is required, all other fields are optional.
     Fields: data(str), talk(str), text(str), price(float), financing_status(bool), carriers[]
-    This function will return a list of plans that match or beat: data, talk, text, price
+    This function will return a list of plans that match or beat: data, hotspot, talk, text, price
     The list will filter out plans that are not provided by the carriers in the carriers list.
     **If financing_status is true, we will do something cool in a future update.
     '''
@@ -46,55 +46,57 @@ def recommend():
     if not data or 'lines' not in data:
         return ERROR_400, 400
     provided_fields = []
+
     for field in data:
         provided_fields.append(field)
-    # Prioritize data, talk, text. Then sort by price
+    # If only lines is provided, return all plans
     if len(provided_fields) == 1:
         query = client.query(kind='plans')
         results = list(query.fetch())
         # Not sure if this sorts by keys or values
-        results.sort(key=lambda x: x['price'])
         return jsonify(results), 200
+    
+    query = client.query(kind='plans')
     if 'data' in provided_fields:
-        if 'data' == 'Unlimited':
-            query = client.query(kind='plans')
-            query.add_filter('data', '=', 'Unlimited')
+        if data['data'] == -1:
+            query.add_filter(filter=datastore.query.PropertyFilter('data', '=', -1))
         else:
-            query = client.query(kind='plans')
-            data['data'] = utils.extract_number(data['data'])
-            query.add_filter('data', '>=', data['data'])
+            query.add_filter(filter=datastore.query.PropertyFilter('data', '>=', data['data']))
+
+    if 'hotspot' in provided_fields:
+        if data['hotspot'] == -1:
+            query.add_filter(filter=datastore.query.PropertyFilter('hotspot', '=', -1))
+        else:
+            query.add_filter(filter=datastore.query.PropertyFilter('hotspot', '>=', data['hotspot']))
+
     if 'talk' in provided_fields:
-        if 'talk' == 'Unlimited':
-            query = client.query(kind='plans')
-            query.add_filter('talk', '=', 'Unlimited')
+        if data['talk'] == -1:
+            query.add_filter(filter=datastore.query.PropertyFilter('talk', '=', -1))
         else:
-            query = client.query(kind='plans')
-            data['talk'] = utils.extract_number(data['talk'])
-            query.add_filter('talk', '>=', data['talk'])
+            data['talk'] = data['talk']
+            query.add_filter(filter=datastore.query.PropertyFilter('talk', '>=', data['talk']))
+
     if 'text' in provided_fields:
-        if 'text' == 'Unlimited':
-            query = client.query(kind='plans')
-            query.add_filter('text', '=', 'Unlimited')
+        if data['text'] == -1:
+            query.add_filter(filter=datastore.query.PropertyFilter('text', '=', -1))
         else:
-            query = client.query(kind='plans')
-            data['text'] = utils.extract_number(data['text'])
-            query.add_filter('text', '>=', data['text'])
+            data['text'] = data['text']
+            query.add_filter(filter=datastore.query.PropertyFilter('text', '>=', data['text']))
+
     results = list(query.fetch())
+
     # Filter out plans that are not provided by the carriers in the carriers list.
     if 'carriers' in provided_fields:
         for i in results:
             if i['carrier'] not in data['carriers']:
                 results.remove(i)
-    # Sort by price. This might not work. In fact, it probably doesn't. Also, it probably crashes.
-    results.sort(key=lambda x: x['price'])
     return jsonify(results), 200
-
 
 # Admin only routes. Auth will be added later.
 @app.route('/plans', methods=['POST'])
 def create_plan():
     '''
-    Add a plan to the database.
+    Add a plan to the database. Unlimited data is represented by -1.
     '''
     data = request.get_json()
     if not data:
@@ -111,7 +113,6 @@ def create_plan():
     client.put(new_plan)
     new_plan['id'] = new_plan.id
     new_plan['self'] = f'{SELF_URL}plans/{new_plan['id']}'
-    print(new_plan['self'])
     return jsonify(new_plan), 201
 
 @app.route('/plans/<plan_id>', methods=['GET'])

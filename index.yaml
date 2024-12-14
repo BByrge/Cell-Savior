@@ -1,0 +1,8 @@
+indexes:
+
+- kind: plans
+  properties:
+  - name: data
+  - name: talk
+  - name: text
+  - name: hotspot
