@@ -43,15 +43,15 @@ def auth_initiate():
     )
     return jsonify({"url": url, 'state': state}), 200
 
-@app.route('/api/oauth/callback', methods=['POST'])
+@app.route('/api/auth/callback', methods=['POST'])
 def oauth_callback():
     code = request.json.get("code")
 
-    # Figure out why state is necessary
+    # Do we need to check the state?
     state = request.json.get("state")
 
     if not code or not state:
-        return jsonify({"error": "Missing code or state"}), 400
+        return ERROR_400, 400
 
     # Exchange code for tokens
     url = "https://oauth2.googleapis.com/token"
@@ -69,7 +69,7 @@ def oauth_callback():
     # id_token is the JWT that can be used to authenticate the user
     id_token = tokens.get("id_token")
     if not id_token:
-        return jsonify({"error": "Failed to retrieve ID token"}), 400
+        return ERROR_400, 400
 
     # Verify the ID token
     try:
@@ -79,7 +79,7 @@ def oauth_callback():
     except ValueError:
         return jsonify({"error": "Invalid ID token"}), 400
 
-    # Optionally generate your own JWT for user sessions
+    # Generate a custom JWT for client to manage user sessions and provide authorization
     user_jwt = generate_custom_jwt(id_info)
 
     return jsonify({"id_token": id_token, "user_jwt": user_jwt, "user_info": id_info})
@@ -96,7 +96,9 @@ def generate_custom_jwt(id_info):
 
     if not results:
         # Create user with role user
-        create_user(id_info)
+        user = utils.create_user(id_info)
+        if user == 0:
+            return ERROR_400, 400
         # Role is set to user by default. Changing this requires manual admin action.
         roles = ["user"]
     elif results > 1:
@@ -106,6 +108,7 @@ def generate_custom_jwt(id_info):
     else:
         roles = results[0]['roles']
 
+    # Refresh token will be added later
     payload = {
         "sub": id_info["sub"],
         "email": id_info["email"],
@@ -114,22 +117,9 @@ def generate_custom_jwt(id_info):
         "iat": datetime.datetime.now(datetime.timezone.utc),
         "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
     }
+    
+    # Perhaps upgrade to RS256 later. The complexity is not worth it right now.
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
-
-def create_user(id_info):
-    new_user = datastore.Entity(client.key('users'))
-    required_fields = ["sub", "email", "name"]
-    for field in required_fields:
-        if field not in id_info:
-            return ERROR_400, 400
-    new_user.update({
-        "sub": id_info["sub"],
-        "email": id_info["email"],
-        "name": id_info["name"],
-        "roles": ["user"]
-    })
-    client.put(new_user)
-    return new_user
 
 # User and admin routes
 @app.route('/api/plans', methods=['GET'])
