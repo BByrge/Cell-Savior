@@ -1,27 +1,26 @@
-from flask import Flask, request, send_file, jsonify
+from flask import request, jsonify
+from __init__ import create_app
 from google.cloud import datastore
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 import requests, json, jwt, utils, datetime
 
-app = Flask(__name__)
+app = create_app()
 
-app.secret_key = 'SECRET_KEY'
-with open("client_secret.json") as f:
-    client_secret = json.load(f)
-CLIENT_ID = client_secret['web']['client_id']
-CLIENT_SECRET = client_secret['web']['client_secret']
-REDIRECT_URI = client_secret['web']['redirect_uris'][0]
-SCOPE = "https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email"
-
-client = datastore.Client()
-# SELF_URL = 'https://cellularsavior-442cf.uc.r.appspot.com/api/'
-SELF_URL = 'http://127.0.0.1:8080/api/'
+GOOGLE_AUTH_CLIENT_ID = app.config['GOOGLE_AUTH_CLIENT_ID']
+GOOGLE_AUTH_CLIENT_SECRET = app.config['GOOGLE_AUTH_CLIENT_SECRET']
+GOOGLE_AUTH_REDIRECT_URI = app.config['GOOGLE_AUTH_REDIRECT_URIS'][0]
+GOOGLE_AUTH_SCOPE = app.config['GOOGLE_AUTH_SCOPE']
 
 ERROR_400 = {"Error": "The request body is invalid"}
 ERROR_401 = {"Error": "Unauthorized"}
 ERROR_403 = {"Error": "You don't have permission on this resource"}
 ERROR_404 = {"Error": "Not found"}
+
+# SELF_URL = 'https://cellularsavior-442cf.uc.r.appspot.com/api/'
+SELF_URL = 'http://127.0.0.1:8080/api/'
+
+client = datastore.Client()
 
 @app.route('/api', methods=['GET'])
 def index():
@@ -38,8 +37,8 @@ def auth_initiate():
     state = utils.generate_state()
     url = (
         "https://accounts.google.com/o/oauth2/v2/auth"
-        f"?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}"
-        f"&scope={SCOPE}&state={state}&prompt=consent&include_granted_scopes=true"
+        f"?response_type=code&client_id={GOOGLE_AUTH_CLIENT_ID}&redirect_uri={GOOGLE_AUTH_REDIRECT_URI}"
+        f"&scope={GOOGLE_AUTH_SCOPE}&state={state}&prompt=consent&include_granted_scopes=true"
     )
     return jsonify({"url": url, 'state': state}), 200
 
@@ -58,9 +57,9 @@ def oauth_callback():
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     data = {
         "code": code,
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "redirect_uri": REDIRECT_URI,
+        "client_id": GOOGLE_AUTH_CLIENT_ID,
+        "client_secret": GOOGLE_AUTH_CLIENT_SECRET,
+        "redirect_uri": GOOGLE_AUTH_REDIRECT_URI,
         "grant_type": "authorization_code"
     }
     response = requests.post(url, headers=headers, data=data)
@@ -74,7 +73,7 @@ def oauth_callback():
     # Verify the ID token
     try:
         id_info = google_id_token.verify_oauth2_token(
-            id_token, google_requests.Request(), CLIENT_ID
+            id_token, google_requests.Request(), GOOGLE_AUTH_CLIENT_ID
         )
     except ValueError:
         return jsonify({"error": "Invalid ID token"}), 400
