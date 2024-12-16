@@ -1,26 +1,138 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, send_file, jsonify
 from google.cloud import datastore
-
-import utils
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
+import requests, json, jwt, utils, datetime
 
 app = Flask(__name__)
+
 app.secret_key = 'SECRET_KEY'
+with open("client_secret.json") as f:
+    client_secret = json.load(f)
+CLIENT_ID = client_secret['web']['client_id']
+CLIENT_SECRET = client_secret['web']['client_secret']
+REDIRECT_URI = client_secret['web']['redirect_uris'][0]
+SCOPE = "https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email"
 
 client = datastore.Client()
-# SELF_URL = 'https://cellularsavior-442cf.uc.r.appspot.com/'
-SELF_URL = 'http://127.0.0.1:8080/'
+# SELF_URL = 'https://cellularsavior-442cf.uc.r.appspot.com/api/'
+SELF_URL = 'http://127.0.0.1:8080/api/'
 
 ERROR_400 = {"Error": "The request body is invalid"}
 ERROR_401 = {"Error": "Unauthorized"}
 ERROR_403 = {"Error": "You don't have permission on this resource"}
 ERROR_404 = {"Error": "Not found"}
 
-@app.route('/', methods=['GET'])
+@app.route('/api', methods=['GET'])
 def index():
+    '''
+    Home route. API documentation.
+    '''
     return 'API Documentation will be here'
 
+@app.route('/api/auth/initiate', methods=['GET'])
+def auth_initiate():
+    '''
+    OAuth2.0 Authentication with google. Callback URL is /api/auth/callback.
+    '''
+    state = utils.generate_state()
+    url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}"
+        f"&scope={SCOPE}&state={state}&prompt=consent&include_granted_scopes=true"
+    )
+    return jsonify({"url": url, 'state': state}), 200
+
+@app.route('/api/oauth/callback', methods=['POST'])
+def oauth_callback():
+    code = request.json.get("code")
+
+    # Figure out why state is necessary
+    state = request.json.get("state")
+
+    if not code or not state:
+        return jsonify({"error": "Missing code or state"}), 400
+
+    # Exchange code for tokens
+    url = "https://oauth2.googleapis.com/token"
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    data = {
+        "code": code,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "redirect_uri": REDIRECT_URI,
+        "grant_type": "authorization_code"
+    }
+    response = requests.post(url, headers=headers, data=data)
+    tokens = response.json()
+
+    # id_token is the JWT that can be used to authenticate the user
+    id_token = tokens.get("id_token")
+    if not id_token:
+        return jsonify({"error": "Failed to retrieve ID token"}), 400
+
+    # Verify the ID token
+    try:
+        id_info = google_id_token.verify_oauth2_token(
+            id_token, google_requests.Request(), CLIENT_ID
+        )
+    except ValueError:
+        return jsonify({"error": "Invalid ID token"}), 400
+
+    # Optionally generate your own JWT for user sessions
+    user_jwt = generate_custom_jwt(id_info)
+
+    return jsonify({"id_token": id_token, "user_jwt": user_jwt, "user_info": id_info})
+
+def generate_custom_jwt(id_info):
+
+    # ***** this needs to be changed and managed properly *****
+    SECRET_KEY = "your-secret-key"
+
+    # Check if user exists in database
+    query = client.query(kind='users')
+    query.add_filter(filter=datastore.query.PropertyFilter('sub', '=', id_info["sub"]))
+    results = list(query.fetch())
+
+    if not results:
+        # Create user with role user
+        create_user(id_info)
+        # Role is set to user by default. Changing this requires manual admin action.
+        roles = ["user"]
+    elif results > 1:
+        return {"Error": "Duplicate user in database"}, 500
+    elif 'roles' not in results[0]:
+        roles = ["user"]
+    else:
+        roles = results[0]['roles']
+
+    payload = {
+        "sub": id_info["sub"],
+        "email": id_info["email"],
+        "name": id_info["name"],
+        "roles": roles,
+        "iat": datetime.datetime.now(datetime.timezone.utc),
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
+def create_user(id_info):
+    new_user = datastore.Entity(client.key('users'))
+    required_fields = ["sub", "email", "name"]
+    for field in required_fields:
+        if field not in id_info:
+            return ERROR_400, 400
+    new_user.update({
+        "sub": id_info["sub"],
+        "email": id_info["email"],
+        "name": id_info["name"],
+        "roles": ["user"]
+    })
+    client.put(new_user)
+    return new_user
+
 # User and admin routes
-@app.route('/plans', methods=['GET'])
+@app.route('/api/plans', methods=['GET'])
 def get_plans():
     '''
     Get all the plans from the database. Use for browsing.
@@ -31,14 +143,17 @@ def get_plans():
     # We only add the id if the user is an admin
     for i in results:
         i['id'] = i.id
-    return jsonify(results), 200
+        i['self'] = f'{SELF_URL}plans/{i.id}'
 
-@app.route('/recommend', methods=['GET'])
+    return results, 200
+
+@app.route('/api/recommend', methods=['GET'])
 def recommend():
     '''
-    Get a plan recommendation. Lines is required, all other fields are optional.
-    Fields: data(str), talk(str), text(str), price(float), financing_status(bool), carriers[]
-    This function will return a list of plans that match or beat: data, hotspot, talk, text, price
+    Get a plan recommendation.
+    Required Fields: lines(int)
+    Possible Fields: data(int), talk(int), text(int), price(float), financing_status(bool), carriers[]
+    This function will return a list of plans that match or beat: data, hotspot, talk, and text.
     The list will filter out plans that are not provided by the carriers in the carriers list.
     **If financing_status is true, we will do something cool in a future update.
     '''
@@ -55,7 +170,7 @@ def recommend():
         query = client.query(kind='plans')
         results = list(query.fetch())
         # Not sure if this sorts by keys or values
-        return jsonify(results), 200
+        return results, 200
     
     query = client.query(kind='plans')
     if 'data' in provided_fields:
@@ -92,10 +207,10 @@ def recommend():
             if i['carrier'] not in data['carriers']:
                 results.remove(i)
 
-    return jsonify(results), 200
+    return results, 200
 
 # Admin only routes. Auth will be added later.
-@app.route('/plans', methods=['POST'])
+@app.route('/api/plans', methods=['POST'])
 def create_plan():
     '''
     Add a plan to the database. Unlimited data is represented by -1.
@@ -105,7 +220,7 @@ def create_plan():
         return ERROR_400, 400
     # Check for duplicate plan
     query = client.query(kind='plans')
-    query.add_filter('name', '=', data['name'])
+    query.add_filter(filter=datastore.query.PropertyFilter('name', '=', data['name']))
     results = list(query.fetch())
     if results:
         return {"Error": "A plan with that name already exists"}, 400
@@ -115,20 +230,23 @@ def create_plan():
     client.put(new_plan)
     new_plan['id'] = new_plan.id
     new_plan['self'] = f'{SELF_URL}plans/{new_plan['id']}'
-    return jsonify(new_plan), 201
+    return new_plan, 201
 
-@app.route('/plans/<plan_id>', methods=['GET'])
+@app.route('/api/plans/<plan_id>', methods=['GET'])
 def get_plan(plan_id):
     '''
     Get a plan by ID.
     '''
+    if not plan_id:
+        return ERROR_400, 400
     key = client.key('plans', int(plan_id))
     plan = client.get(key)
     if not plan:
         return ERROR_404, 404
-    return jsonify(plan), 200
+    
+    return plan, 200
 
-@app.route('/plans/<plan_id>', methods = ['DELETE'])
+@app.route('/api/plans/<plan_id>', methods = ['DELETE'])
 def delete_plan(plan_id):
     '''
     Delete a plan from the database.
@@ -140,7 +258,7 @@ def delete_plan(plan_id):
     client.delete(plan)
     return '', 204
 
-@app.route('/plans/<plan_id>', methods=['PATCH'])
+@app.route('/api/plans/<plan_id>', methods=['PATCH'])
 def patch_plan(plan_id):
     '''
     Patch plan in database.
@@ -155,7 +273,7 @@ def patch_plan(plan_id):
     client.put(plan)
     plan['id'] = plan.id
     plan['self'] = f'{SELF_URL}plans/{plan['id']}'
-    return jsonify(plan), 200
+    return plan, 200
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=8080, debug=True)
