@@ -101,7 +101,7 @@ def generate_custom_jwt(id_info):
             return ERROR_400, 400
         # Role is set to user by default. Changing this requires manual admin action.
         roles = ["user"]
-    elif results > 1:
+    elif len(results) > 1:
         return {"Error": "Duplicate user in database"}, 500
     elif 'roles' not in results[0]:
         roles = ["user"]
