@@ -2,5 +2,5 @@
 *.pyc
 *.json
 test.py
+*.pem
 .env
-client_secret.json

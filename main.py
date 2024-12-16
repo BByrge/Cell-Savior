@@ -3,7 +3,9 @@ from __init__ import create_app
 from google.cloud import datastore
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
+from security import auth_decorators
 import requests, json, jwt, utils, datetime
+
 
 app = create_app()
 
@@ -86,7 +88,7 @@ def oauth_callback():
 def generate_custom_jwt(id_info):
 
     # ***** this needs to be changed and managed properly *****
-    SECRET_KEY = "your-secret-key"
+    SECRET_KEY = app.config['SECRET_KEY']
 
     # Check if user exists in database
     query = client.query(kind='users')
@@ -117,10 +119,9 @@ def generate_custom_jwt(id_info):
         "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
     }
     
-    # Perhaps upgrade to RS256 later. The complexity is not worth it right now.
-    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return jwt.encode(payload, SECRET_KEY, algorithm="RS256")
 
-# User and admin routes
+# User routes
 @app.route('/api/plans', methods=['GET'])
 def get_plans():
     '''
@@ -198,8 +199,24 @@ def recommend():
 
     return results, 200
 
-# Admin only routes. Auth will be added later.
+@app.route('/api/plans/<plan_id>', methods=['GET'])
+def get_plan(plan_id):
+    '''
+    Get a plan by ID.
+    '''
+    if not plan_id:
+        return ERROR_400, 400
+    key = client.key('plans', int(plan_id))
+    plan = client.get(key)
+    if not plan:
+        return ERROR_404, 404
+    
+    return plan, 200
+
+
+# Admin only routes.
 @app.route('/api/plans', methods=['POST'])
+@auth_decorators.admin_required
 def create_plan():
     '''
     Add a plan to the database. Unlimited data is represented by -1.
@@ -221,21 +238,8 @@ def create_plan():
     new_plan['self'] = f'{SELF_URL}plans/{new_plan['id']}'
     return new_plan, 201
 
-@app.route('/api/plans/<plan_id>', methods=['GET'])
-def get_plan(plan_id):
-    '''
-    Get a plan by ID.
-    '''
-    if not plan_id:
-        return ERROR_400, 400
-    key = client.key('plans', int(plan_id))
-    plan = client.get(key)
-    if not plan:
-        return ERROR_404, 404
-    
-    return plan, 200
-
 @app.route('/api/plans/<plan_id>', methods = ['DELETE'])
+@auth_decorators.admin_required
 def delete_plan(plan_id):
     '''
     Delete a plan from the database.
@@ -248,6 +252,7 @@ def delete_plan(plan_id):
     return '', 204
 
 @app.route('/api/plans/<plan_id>', methods=['PATCH'])
+@auth_decorators.admin_required
 def patch_plan(plan_id):
     '''
     Patch plan in database.

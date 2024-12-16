@@ -9,5 +9,4 @@ def create_app():
     # Set the app configuration.
     for key in CONFIG:
         app.config[key] = CONFIG[key]
-
     return app
