@@ -1,4 +1,5 @@
 runtime: python312
+entrypoint: gunicorn -b :$PORT main:app
 
 handlers:
   # This handler routes all requests not caught above to your main app. It is

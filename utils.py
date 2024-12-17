@@ -1,14 +1,15 @@
-import random, string, jwt
-from os import environ
-from functools import wraps
-from flask import request
+import random, string, jwt, datetime
+from flask import current_app as app
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from google.cloud import datastore
-from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
+ERROR_400 = {"Error": "The request body is invalid"}
+ERROR_401 = {"Error": "Unauthorized"}
+ERROR_403 = {"Error": "You don't have permission on this resource"}
+ERROR_404 = {"Error": "Not found"}
 
 client = datastore.Client()
 
@@ -33,10 +34,49 @@ def create_user(id_info):
     return new_user
 
 
+def generate_custom_jwt(id_info):
+    '''
+    Generate a custom JWT token for the user.
+    '''
+    # ***** this needs to be changed and managed properly *****
+    SECRET_KEY = app.config['SECRET_KEY']
+
+    # Check if user exists in database
+    query = client.query(kind='users')
+    query.add_filter(filter=datastore.query.PropertyFilter('sub', '=', id_info["sub"]))
+    results = list(query.fetch())
+
+    if not results:
+        # Create user with role user
+        user = create_user(id_info)
+        if user == 0:
+            return ERROR_400, 400
+        # Role is set to user by default. Changing this requires manual admin action.
+        roles = ["user"]
+    elif len(results) > 1:
+        return {"Error": "Duplicate user in database"}, 500
+    elif 'roles' not in results[0]:
+        roles = ["user"]
+    else:
+        roles = results[0]['roles']
+
+    # Refresh token will be added later
+    payload = {
+        "sub": id_info["sub"],
+        "email": id_info["email"],
+        "name": id_info["name"],
+        "roles": roles,
+        "iat": datetime.datetime.now(datetime.timezone.utc),
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
+    }
+    
+    return jwt.encode(payload, SECRET_KEY, algorithm="RS256")
+
+
 def generate_key_pair():
     '''
     Generate an RSA key pair and save it to disk.
-    These keys should be added as environment variables.
+    These keys should be added as environment variables and never hardcoded or committed to source control.
     '''
     private_key = rsa.generate_private_key(
         public_exponent=65537,

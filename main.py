@@ -4,7 +4,7 @@ from google.cloud import datastore
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from security import auth_decorators
-import requests, json, jwt, utils, datetime
+import requests, utils
 
 
 app = create_app()
@@ -24,13 +24,20 @@ SELF_URL = 'http://127.0.0.1:8080/api/'
 
 client = datastore.Client()
 
+# Home route. API documentation.
+@app.route('/', methods=['GET'])
+def home():
+    return '/api for docs', 200
+
 @app.route('/api', methods=['GET'])
 def index():
     '''
     Home route. API documentation.
     '''
-    return 'API Documentation will be here'
+    return 'API Documentation will be here. /api/auth/key for public key.', 200
 
+
+# Authentication routes
 @app.route('/api/auth/initiate', methods=['GET'])
 def auth_initiate():
     '''
@@ -80,46 +87,20 @@ def oauth_callback():
     except ValueError:
         return jsonify({"error": "Invalid ID token"}), 400
 
-    # Generate a custom JWT for client to manage user sessions and provide authorization
-    user_jwt = generate_custom_jwt(id_info)
+    # Generate a custom JWT for client to manage user sessions and provide authorization.
+    # A new user will be created in generate_custom_jwt if the user does not exist.
+    user_jwt = utils.generate_custom_jwt(id_info)
 
-    return jsonify({"id_token": id_token, "user_jwt": user_jwt, "user_info": id_info})
+    return jsonify({"id_token": id_token, "user_jwt": user_jwt, "user_info": id_info})  
 
-def generate_custom_jwt(id_info):
+@app.route('/api/auth/key', methods=['GET'])
+def get_public_key():
+    '''
+    Get the public key for verifying JWTs.
+    '''
+    public_key = app.config['PUBLIC_KEY']
+    return {"key": public_key}, 200
 
-    # ***** this needs to be changed and managed properly *****
-    SECRET_KEY = app.config['SECRET_KEY']
-
-    # Check if user exists in database
-    query = client.query(kind='users')
-    query.add_filter(filter=datastore.query.PropertyFilter('sub', '=', id_info["sub"]))
-    results = list(query.fetch())
-
-    if not results:
-        # Create user with role user
-        user = utils.create_user(id_info)
-        if user == 0:
-            return ERROR_400, 400
-        # Role is set to user by default. Changing this requires manual admin action.
-        roles = ["user"]
-    elif len(results) > 1:
-        return {"Error": "Duplicate user in database"}, 500
-    elif 'roles' not in results[0]:
-        roles = ["user"]
-    else:
-        roles = results[0]['roles']
-
-    # Refresh token will be added later
-    payload = {
-        "sub": id_info["sub"],
-        "email": id_info["email"],
-        "name": id_info["name"],
-        "roles": roles,
-        "iat": datetime.datetime.now(datetime.timezone.utc),
-        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
-    }
-    
-    return jwt.encode(payload, SECRET_KEY, algorithm="RS256")
 
 # User routes
 @app.route('/api/plans', methods=['GET'])
@@ -219,7 +200,8 @@ def get_plan(plan_id):
 @auth_decorators.admin_required
 def create_plan():
     '''
-    Add a plan to the database. Unlimited data is represented by -1.
+    Add a plan to the database.
+    Plan: name, data, hotspot, talk, text, price, carrier, description, payoff
     '''
     data = request.get_json()
     if not data:
@@ -268,6 +250,7 @@ def patch_plan(plan_id):
     plan['id'] = plan.id
     plan['self'] = f'{SELF_URL}plans/{plan['id']}'
     return plan, 200
+
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=8080, debug=True)

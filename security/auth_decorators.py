@@ -6,7 +6,7 @@ import jwt
 
 def admin_required(func):
     @wraps(func)
-    def wrapper():
+    def wrapper(*args, **kwargs):
         headers = request.headers
 
         # Check for Authorization header
@@ -17,7 +17,7 @@ def admin_required(func):
 
         # Remove "Bearer " prefix from token
         token = token.split(" ")[1]
-        PUBLIC_KEY = environ.get("PUBLIC_KEY", "").replace("\\n", "\n")
+        PUBLIC_KEY = environ.get("PUBLIC_KEY", "")
         
         if not PUBLIC_KEY:
             return {"error": "Public key not found"}, 500
@@ -34,6 +34,6 @@ def admin_required(func):
             return {"error": "Token has expired"}, 401
         except InvalidTokenError:
             return {"error": "Invalid token"}, 401
-        return func()
+        return func(*args, **kwargs)
 
     return wrapper
