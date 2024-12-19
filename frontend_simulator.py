@@ -27,7 +27,8 @@ def oauth_callback():
     if not code or not state:
         return "Missing authorization code or state", 400
 
-    # Send code and state to backend for token exchange
+    # Send code and state to backend for token exchange. There might be potential for improvement here.
+    # Can we callback to the backend and then request the JWT?
     payload = {"code": code, "state": state}
     response = requests.post(f"{BACKEND_API_BASE_URL}/auth/callback", json=payload)
     if response.status_code == 200:

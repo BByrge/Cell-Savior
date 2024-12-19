@@ -1,8 +1,14 @@
+'''
+This file is used to create the Flask app instance. The app configuration is set in this file.
+'''
 from flask import Flask
 from config import set_config
 from dotenv import load_dotenv
 
 def create_app():
+    '''
+    Create the Flask app instance. Load the configuration from the config.py file.
+    '''
     app = Flask(__name__)
     load_dotenv()
     CONFIG = set_config()

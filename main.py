@@ -1,3 +1,9 @@
+'''
+API for Cellular Savior. This file only contains the API routes.
+Functions/ROUTES: home, index, auth_initiate, oauth_callback, get_public_key, get_plans, recommend, get_plan, create_plan, delete_plan, patch_plan
+Exceptions: ERROR_400, ERROR_401, ERROR_403, ERROR_404
+'''
+
 from flask import request, jsonify
 from __init__ import create_app
 from google.cloud import datastore
@@ -24,15 +30,17 @@ SELF_URL = 'http://127.0.0.1:8080/api/'
 
 client = datastore.Client()
 
-# Home route. API documentation.
 @app.route('/', methods=['GET'])
 def home():
+    '''
+    Home route. This will not be used in the api. 
+    '''
     return '/api for docs', 200
 
 @app.route('/api', methods=['GET'])
 def index():
     '''
-    Home route. API documentation.
+    Root for the api. API documentation.
     '''
     return 'API Documentation will be here. /api/auth/key for public key.', 200
 
@@ -41,7 +49,11 @@ def index():
 @app.route('/api/auth/initiate', methods=['GET'])
 def auth_initiate():
     '''
-    OAuth2.0 Authentication with google. Callback URL is /api/auth/callback.
+    Returns the URL for the user to authenticate with Google. This url contains the client_id, redirect_uri, scope, and state.
+    Client is responsible for the redirection to the URL.
+    State is a random string that is used to prevent CSRF attacks.
+    Returns:
+        dict: url, state
     '''
     state = utils.generate_state()
     url = (
@@ -53,6 +65,13 @@ def auth_initiate():
 
 @app.route('/api/auth/callback', methods=['POST'])
 def oauth_callback():
+    '''
+    Callback route for OAuth2.0. This route exchanges the code for tokens and verifies the ID token.
+    This route is called by the client after the user has authenticated with Google.
+    Request Body: code, state
+    Returns:
+        dict: id_token, user_jwt, user_info
+    '''
     code = request.json.get("code")
 
     # Do we need to check the state?
@@ -90,6 +109,8 @@ def oauth_callback():
     # Generate a custom JWT for client to manage user sessions and provide authorization.
     # A new user will be created in generate_custom_jwt if the user does not exist.
     user_jwt = utils.generate_custom_jwt(id_info)
+    if user_jwt == 0:
+        return ERROR_400, 400
 
     return jsonify({"id_token": id_token, "user_jwt": user_jwt, "user_info": id_info})  
 
@@ -97,6 +118,8 @@ def oauth_callback():
 def get_public_key():
     '''
     Get the public key for verifying JWTs.
+    Returns:
+        dict: key
     '''
     public_key = app.config['PUBLIC_KEY']
     return {"key": public_key}, 200
@@ -106,8 +129,10 @@ def get_public_key():
 @app.route('/api/plans', methods=['GET'])
 def get_plans():
     '''
-    Get all the plans from the database. Use for browsing.
-    ID is only included if the user is an admin.
+    Get all the plans from the database.
+    Client should use this router to get all the plans.
+    Returns:
+        list: plans
     '''
     query = client.query(kind='plans')
     results = list(query.fetch())
@@ -122,11 +147,22 @@ def get_plans():
 def recommend():
     '''
     Get a plan recommendation.
-    Required Fields: lines(int)
-    Possible Fields: data(int), talk(int), text(int), price(float), financing_status(bool), carriers[]
     This function will return a list of plans that match or beat: data, hotspot, talk, and text.
     The list will filter out plans that are not provided by the carriers in the carriers list.
-    **If financing_status is true, we will do something cool in a future update.
+    **If financing_status is true, return a second list of plans that have payoff options. (Not implemented)
+
+    Request Body:
+                lines: int (required)   
+                data: int (optional)
+                hotspot: int (optional)
+                talk: int (optional)
+                text: int (optional)
+                price: float (optional)
+                financing_status: bool (optional)
+                carriers: list (optional)
+
+    Returns:
+        list: plans
     '''
     data = request.get_json()
     if not data or 'lines' not in data:
@@ -177,13 +213,17 @@ def recommend():
         for i in results:
             if i['carrier'] not in data['carriers']:
                 results.remove(i)
-
-    return results, 200
+    payoff = [] # Not implemented
+    return {'results': results, 'payoff': payoff}, 200
 
 @app.route('/api/plans/<plan_id>', methods=['GET'])
 def get_plan(plan_id):
     '''
     Get a plan by ID.
+    Arguments:
+        plan_id: int
+    Returns:
+        plan
     '''
     if not plan_id:
         return ERROR_400, 400
@@ -202,6 +242,18 @@ def create_plan():
     '''
     Add a plan to the database.
     Plan: name, data, hotspot, talk, text, price, carrier, description, payoff
+    Request Body:
+            name: str (required)
+            data: int (required)
+            hotspot: int (required)
+            talk: int (required)
+            text: int (required)
+            price: float (required)
+            carrier: str (required)
+            description: str (required)
+            payoff: bool (required)
+    Returns:
+        plan
     '''
     data = request.get_json()
     if not data:
@@ -224,7 +276,9 @@ def create_plan():
 @auth_decorators.admin_required
 def delete_plan(plan_id):
     '''
-    Delete a plan from the database.
+    Delete a plan from the database. 
+    Arguments: 
+            plan_id
     '''
     key = client.key('plans', int(plan_id))
     plan = client.get(key)
@@ -238,6 +292,10 @@ def delete_plan(plan_id):
 def patch_plan(plan_id):
     '''
     Patch plan in database.
+    Arguments: 
+            plan_id
+    Return:
+        plan
     '''
     data = request.get_json()
     key = client.key('plans', int(plan_id))

@@ -1,3 +1,8 @@
+'''
+This file contains utility functions that are used by the main application or are one time use functions.
+Functions: generate_state, create_user, generate_custom_jwt, generate_key_pair
+Exceptions: All functions return 0 if error occurs.
+'''
 import random, string, jwt, datetime
 from flask import current_app as app
 
@@ -6,19 +11,25 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from google.cloud import datastore
 
-ERROR_400 = {"Error": "The request body is invalid"}
-ERROR_401 = {"Error": "Unauthorized"}
-ERROR_403 = {"Error": "You don't have permission on this resource"}
-ERROR_404 = {"Error": "Not found"}
-
 client = datastore.Client()
 
 
 def generate_state():
+    '''
+    Generate a random state string for OAuth2.0 authorization.
+    '''
     return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
 
 
 def create_user(id_info):
+    '''
+    Create a new user in the database. The user is assigned the role 'user' by default.
+    Arguments:
+        id_info: dict
+    Returns:
+        datastore.Entity: user entity
+        0 if error occurs
+    '''
     new_user = datastore.Entity(client.key('users'))
     required_fields = ["sub", "email", "name"]
     for field in required_fields:
@@ -50,11 +61,11 @@ def generate_custom_jwt(id_info):
         # Create user with role user
         user = create_user(id_info)
         if user == 0:
-            return ERROR_400, 400
+            return 0
         # Role is set to user by default. Changing this requires manual admin action.
         roles = ["user"]
     elif len(results) > 1:
-        return {"Error": "Duplicate user in database"}, 500
+        return 0
     elif 'roles' not in results[0]:
         roles = ["user"]
     else:
@@ -75,8 +86,11 @@ def generate_custom_jwt(id_info):
 
 def generate_key_pair():
     '''
-    Generate an RSA key pair and save it to disk.
+    Generate an RSA key pair and save it to disk. This function should never be used in the code.
+    This function is only used to generate a new key pair for the application.
     These keys should be added as environment variables and never hardcoded or committed to source control.
+    Returns:
+        str: message
     '''
     private_key = rsa.generate_private_key(
         public_exponent=65537,

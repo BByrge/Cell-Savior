@@ -1,7 +1,16 @@
+'''
+This file contains the configuration for the Flask app.
+The configuration is loaded in the app factory in __init__.py.
+'''
+
 from os import environ
 
 def set_config():
-    # Set the app configuration.
+    '''
+    Set the configuration for the Flask app.
+    Returns:
+        dict: configuration
+    '''
     CONFIG = {
         'DEBUG': False,
         'TESTING': False,

@@ -1,17 +1,30 @@
+'''
+Decorators to be used for authorization. Any route/function decorated requires authentication and a valid JWT.
+Decorators: admin_required, user_required (not implemented), representative_required (not implemented).
+Exceptions: ExpiredSignatureError, InvalidTokenError.
+'''
 from functools import wraps
 from flask import request
 from jwt import ExpiredSignatureError, InvalidTokenError
 from os import environ
 import jwt
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 def admin_required(func):
+    '''
+    Authorization decorator for admin users. Checks for the 'admin' role in the JWT.
+    Arguments:
+        func: function
+    Returns:
+        function: wrapper
+    '''
     @wraps(func)
     def wrapper(*args, **kwargs):
         headers = request.headers
 
         # Check for Authorization header
         if "Authorization" not in headers:
-            return {"error": "Authorization header is missing"}, 401
+            return {"Error": "Authorization header is missing"}, 401
 
         token = headers["Authorization"]
 
@@ -20,7 +33,7 @@ def admin_required(func):
         PUBLIC_KEY = environ.get("PUBLIC_KEY", "")
         
         if not PUBLIC_KEY:
-            return {"error": "Public key not found"}, 500
+            return {"Error": "Public key not found"}, 500
 
         try:
             # Decode the JWT
