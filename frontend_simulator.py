@@ -1,3 +1,7 @@
+'''
+This file is for debugging locally without the need for the full application. Mostly for testing the OAuth flow.
+'''
+
 from flask import Flask, redirect, request, jsonify, render_template
 import requests
 

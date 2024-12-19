@@ -49,7 +49,6 @@ def generate_custom_jwt(id_info):
     '''
     Generate a custom JWT token for the user.
     '''
-    # ***** this needs to be changed and managed properly *****
     SECRET_KEY = app.config['SECRET_KEY']
 
     # Check if user exists in database
@@ -82,6 +81,17 @@ def generate_custom_jwt(id_info):
     }
     
     return jwt.encode(payload, SECRET_KEY, algorithm="RS256")
+
+
+def get_expiration(state=None):
+    '''
+    Get the expiration time for state if no argument is passed.
+    Check if the state has expired if an argument is passed.
+    '''
+    # The datetime module supports comparison operators for non-naive datetime objects.
+    if state:
+        return datetime.datetime.now(datetime.timezone.utc) > state["expiration"]
+    return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
 
 
 def generate_key_pair():

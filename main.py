@@ -25,7 +25,6 @@ ERROR_401 = {"Error": "Unauthorized"}
 ERROR_403 = {"Error": "You don't have permission on this resource"}
 ERROR_404 = {"Error": "Not found"}
 
-# SELF_URL = 'https://cellularsavior-442cf.uc.r.appspot.com/api/'
 SELF_URL = 'http://127.0.0.1:8080/api/'
 
 client = datastore.Client()
@@ -56,6 +55,11 @@ def auth_initiate():
         dict: url, state
     '''
     state = utils.generate_state()
+    # Store state in datastore with an expiration date. Check state in callback route.
+    entity = datastore.Entity(client.key('state'))
+    entity = {'state': state, 'expiration': utils.get_expiration()}
+    client.put(entity)
+
     url = (
         "https://accounts.google.com/o/oauth2/v2/auth"
         f"?response_type=code&client_id={GOOGLE_AUTH_CLIENT_ID}&redirect_uri={GOOGLE_AUTH_REDIRECT_URI}"
@@ -73,12 +77,22 @@ def oauth_callback():
         dict: id_token, user_jwt, user_info
     '''
     code = request.json.get("code")
-
-    # Do we need to check the state?
     state = request.json.get("state")
-
     if not code or not state:
         return ERROR_400, 400
+
+    # Verify state to prevent CSRF attacks
+    # Check if state exists in datastore and is not expired
+    query = client.query(kind='state')
+    query.add_filter(filter=datastore.query.PropertyFilter('state', '=', state))
+    results = list(query.fetch())
+
+    if not results:
+        return ERROR_403, 403
+    elif not utils.get_expiration(results[0]['expiration']):
+        # Delete the state from the datastore
+        client.delete(results[0].key)
+        return ERROR_403, 403
 
     # Exchange code for tokens
     url = "https://oauth2.googleapis.com/token"
