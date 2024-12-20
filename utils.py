@@ -79,18 +79,17 @@ def generate_custom_jwt(id_info):
         "iat": datetime.datetime.now(datetime.timezone.utc),
         "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
     }
-    
     return jwt.encode(payload, SECRET_KEY, algorithm="RS256")
 
 
-def get_expiration(state=None):
+def get_expiration(expiration=None):
     '''
     Get the expiration time for state if no argument is passed.
     Check if the state has expired if an argument is passed.
     '''
     # The datetime module supports comparison operators for non-naive datetime objects.
-    if state:
-        return datetime.datetime.now(datetime.timezone.utc) > state["expiration"]
+    if expiration:
+        return datetime.datetime.now(datetime.timezone.utc) <= expiration
     return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
 
 

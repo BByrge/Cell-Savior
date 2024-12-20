@@ -57,7 +57,8 @@ def auth_initiate():
     state = utils.generate_state()
     # Store state in datastore with an expiration date. Check state in callback route.
     entity = datastore.Entity(client.key('state'))
-    entity = {'state': state, 'expiration': utils.get_expiration()}
+    entity['state'] = state
+    entity['expiration'] = utils.get_expiration()
     client.put(entity)
 
     url = (
@@ -86,10 +87,11 @@ def oauth_callback():
     query = client.query(kind='state')
     query.add_filter(filter=datastore.query.PropertyFilter('state', '=', state))
     results = list(query.fetch())
-
     if not results:
+        print('State not found')
         return ERROR_403, 403
     elif not utils.get_expiration(results[0]['expiration']):
+        print('State expired')
         # Delete the state from the datastore
         client.delete(results[0].key)
         return ERROR_403, 403
@@ -110,6 +112,7 @@ def oauth_callback():
     # id_token is the JWT that can be used to authenticate the user
     id_token = tokens.get("id_token")
     if not id_token:
+        print('No id token')
         return ERROR_400, 400
 
     # Verify the ID token
