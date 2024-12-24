@@ -160,7 +160,7 @@ def get_plans():
 
     return results, 200
 
-@app.route('/api/recommend', methods=['GET'])
+@app.route('/api/recommend', methods=['POST'])
 def recommend():
     '''
     Get a plan recommendation.
@@ -181,6 +181,7 @@ def recommend():
     Returns:
         list: plans
     '''
+    print('Recommend')
     data = request.get_json()
     if not data or 'lines' not in data:
         return ERROR_400, 400
