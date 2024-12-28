@@ -1,6 +1,6 @@
 '''
 API for Cellular Savior. This file only contains the API routes.
-Functions/ROUTES: home, index, auth_initiate, oauth_callback, get_public_key, get_plans, recommend, get_plan, create_plan, delete_plan, patch_plan
+Functions/ROUTES: home, index, auth_initiate, oauth_callback, get_user, get_public_key, get_plans, recommend, get_plan, create_plan, delete_plan, patch_plan
 Exceptions: ERROR_400, ERROR_401, ERROR_403, ERROR_404
 '''
 
@@ -183,6 +183,7 @@ def recommend():
     '''
     print('Recommend')
     data = request.get_json()
+    print(data['lines'])
     if not data or 'lines' not in data:
         return ERROR_400, 400
     provided_fields = []

@@ -24,6 +24,7 @@ def admin_required(func):
 
         # Check for Authorization header
         if "Authorization" not in headers:
+            print("Authorization header is missing")
             return {"Error": "Authorization header is missing"}, 401
 
         token = headers["Authorization"]
@@ -44,8 +45,10 @@ def admin_required(func):
                 return {"error": "Forbidden: Admin role required"}, 403
 
         except ExpiredSignatureError:
+            print("Token has expired")
             return {"error": "Token has expired"}, 401
         except InvalidTokenError:
+            print("Invalid token")
             return {"error": "Invalid token"}, 401
         return func(*args, **kwargs)
 
