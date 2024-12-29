@@ -1,6 +1,6 @@
 '''
 This file contains utility functions that are used by the main application or are one time use functions.
-Functions: generate_state, create_user, generate_custom_jwt, generate_key_pair
+Functions: generate_state, create_user, generate_custom_jwt, generate_key_pair, get_expiration, verify_JWT, get_date_time.
 Exceptions: All functions return 0 if error occurs.
 '''
 import random, string, jwt, datetime
@@ -30,19 +30,22 @@ def create_user(id_info):
         datastore.Entity: user entity
         0 if error occurs
     '''
-    new_user = datastore.Entity(client.key('users'))
-    required_fields = ["sub", "email", "name"]
-    for field in required_fields:
-        if field not in id_info:
-            return 0
-    new_user.update({
-        "sub": id_info["sub"],
-        "email": id_info["email"],
-        "name": id_info["name"],
-        "roles": ["user"]
-    })
-    client.put(new_user)
-    return new_user
+    try:
+        new_user = datastore.Entity(client.key('users'))
+        required_fields = ["sub", "email", "name"]
+        for field in required_fields:
+            if field not in id_info:
+                return 0
+        new_user.update({
+            "sub": id_info["sub"],
+            "email": id_info["email"],
+            "name": id_info["name"],
+            "roles": ["user"]
+        })
+        client.put(new_user)
+        return new_user
+    except:
+        return 0
 
 
 def generate_custom_jwt(id_info):
@@ -88,9 +91,38 @@ def get_expiration(expiration=None):
     Check if the state has expired if an argument is passed.
     '''
     # The datetime module supports comparison operators for non-naive datetime objects.
-    if expiration:
-        return datetime.datetime.now(datetime.timezone.utc) <= expiration
-    return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
+    try:
+        if expiration:
+            return datetime.datetime.now(datetime.timezone.utc) <= expiration
+        return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
+    except:
+        return 0
+
+
+def verify_JWT(token):
+    '''
+    Verify the JWT token.
+    '''
+    PUBLIC_KEY = app.config['PUBLIC_KEY']
+    try:
+        decoded = jwt.decode(token, PUBLIC_KEY, algorithms=["RS256"])
+        return 1
+    # If we want more specific error messages, we can catch the exceptions separately (expired, invalid). If needed add here.
+    except:
+        return 0
+    
+
+def get_date_time(date_time=None):
+    '''
+    Get the current date and time in UTC if no argument is passed.
+    If an argument is passed, return the amount of time that has passed since the argument.
+    '''
+    try:
+        if not date_time:
+            return datetime.datetime.now(datetime.timezone.utc)
+        return datetime.datetime.now(datetime.timezone.utc) - date_time
+    except:
+        return 0
 
 
 def generate_key_pair():

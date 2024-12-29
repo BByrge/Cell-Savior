@@ -141,6 +141,22 @@ def get_public_key():
     public_key = app.config['PUBLIC_KEY']
     return {"key": public_key}, 200
 
+@app.route('/api/auth/verifyjwt', methods=['POST'])
+def verify_jwt():
+    '''
+    Verify a JWT token.
+    Request Body: token
+    Returns:
+        boolean
+    '''
+    token = request.json.get("token")
+    if not token:
+        return ERROR_400, 400
+
+    valid = utils.verify_JWT(token)
+    if valid == 0:
+        return ERROR_401, 401
+    return {"valid": valid}, 200
 
 # User routes
 @app.route('/api/plans', methods=['GET'])
@@ -166,8 +182,6 @@ def recommend():
     Get a plan recommendation.
     This function will return a list of plans that match or beat: data, hotspot, talk, and text.
     The list will filter out plans that are not provided by the carriers in the carriers list.
-    **If financing_status is true, return a second list of plans that have payoff options. (Not implemented)
-
     Request Body:
                 lines: int (required)   
                 data: int (optional)
@@ -181,9 +195,7 @@ def recommend():
     Returns:
         list: plans
     '''
-    print('Recommend')
     data = request.get_json()
-    print(data['lines'])
     if not data or 'lines' not in data:
         return ERROR_400, 400
     provided_fields = []
@@ -200,40 +212,27 @@ def recommend():
     
     query = client.query(kind='plans')
     if 'data' in provided_fields:
-        if data['data'] == -1:
-            query.add_filter(filter=datastore.query.PropertyFilter('data', '=', -1))
-        else:
-            query.add_filter(filter=datastore.query.PropertyFilter('data', '>=', data['data']))
+        query.add_filter(filter=datastore.query.PropertyFilter('data', '>=', int(data['data'])))
 
     if 'hotspot' in provided_fields:
-        if data['hotspot'] == -1:
-            query.add_filter(filter=datastore.query.PropertyFilter('hotspot', '=', -1))
-        else:
-            query.add_filter(filter=datastore.query.PropertyFilter('hotspot', '>=', data['hotspot']))
+        query.add_filter(filter=datastore.query.PropertyFilter('hotspot', '>=', int(data['hotspot'])))
 
     if 'talk' in provided_fields:
-        if data['talk'] == -1:
-            query.add_filter(filter=datastore.query.PropertyFilter('talk', '=', -1))
-        else:
-            data['talk'] = data['talk']
-            query.add_filter(filter=datastore.query.PropertyFilter('talk', '>=', data['talk']))
+        query.add_filter(filter=datastore.query.PropertyFilter('talk', '>=', int(data['talk'])))
 
     if 'text' in provided_fields:
-        if data['text'] == -1:
-            query.add_filter(filter=datastore.query.PropertyFilter('text', '=', -1))
-        else:
-            data['text'] = data['text']
-            query.add_filter(filter=datastore.query.PropertyFilter('text', '>=', data['text']))
-
+        query.add_filter(filter=datastore.query.PropertyFilter('text', '>=', int(data['text'])))
+    
     results = list(query.fetch())
-
+    for i in results:
+        print(i)
+        print('\n')
     # Filter out plans that are not provided by the carriers in the carriers list.
     if 'carriers' in provided_fields:
         for i in results:
             if i['carrier'] not in data['carriers']:
                 results.remove(i)
-    payoff = [] # Not implemented
-    return {'results': results, 'payoff': payoff}, 200
+    return {'results': results}, 200
 
 @app.route('/api/plans/<plan_id>', methods=['GET'])
 def get_plan(plan_id):
@@ -267,8 +266,9 @@ def create_plan():
             hotspot: int (required)
             talk: int (required)
             text: int (required)
-            price: float (required)
+            price: dict {amount: int, currency: int} (required)
             carrier: str (required)
+            networks: list (required)
             description: str (required)
             payoff: bool (required)
     Returns:
@@ -283,12 +283,15 @@ def create_plan():
     results = list(query.fetch())
     if results:
         return {"Error": "A plan with that name already exists"}, 400
-    # Later verify the data but fuck that for now
+    # Later verify the data
     new_plan = datastore.Entity(client.key('plans'))
+    # Add date added to the plan
+    data['date_added'] = utils.get_date_time()
     new_plan.update(data)
     client.put(new_plan)
     new_plan['id'] = new_plan.id
     new_plan['self'] = f'{SELF_URL}plans/{new_plan['id']}'
+    print(new_plan)
     return new_plan, 201
 
 @app.route('/api/plans/<plan_id>', methods = ['DELETE'])
