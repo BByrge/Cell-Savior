@@ -207,31 +207,35 @@ def recommend():
     if len(provided_fields) == 1:
         query = client.query(kind='plans')
         results = list(query.fetch())
-        # Not sure if this sorts by keys or values
-        return results, 200
+        return {'results': results}, 200
     
     query = client.query(kind='plans')
     if 'data' in provided_fields:
-        query.add_filter(filter=datastore.query.PropertyFilter('data', '>=', int(data['data'])))
+        query.add_filter('data', '>=', int(data['data']))
 
     if 'hotspot' in provided_fields:
-        query.add_filter(filter=datastore.query.PropertyFilter('hotspot', '>=', int(data['hotspot'])))
+        query.add_filter('hotspot', '>=', int(data['hotspot']))
 
     if 'talk' in provided_fields:
-        query.add_filter(filter=datastore.query.PropertyFilter('talk', '>=', int(data['talk'])))
+        query.add_filter('talk', '>=', int(data['talk']))
 
     if 'text' in provided_fields:
-        query.add_filter(filter=datastore.query.PropertyFilter('text', '>=', int(data['text'])))
-    
+        query.add_filter('text', '>=', int(data['text']))
     results = list(query.fetch())
-    for i in results:
-        print(i)
-        print('\n')
+
     # Filter out plans that are not provided by the carriers in the carriers list.
     if 'carriers' in provided_fields:
         for i in results:
             if i['carrier'] not in data['carriers']:
                 results.remove(i)
+
+    # Filter plans that don't have the desired line number. 
+    # This need to be done after the DB query because of the way we stored price.
+    results = [plan for plan in results if str(data['lines']) in plan['price']]
+
+    for i in results:
+        i['id'] = i.id
+        i['self'] = f'{SELF_URL}plans/{i.id}'
     return {'results': results}, 200
 
 @app.route('/api/plans/<plan_id>', methods=['GET'])
@@ -266,11 +270,12 @@ def create_plan():
             hotspot: int (required)
             talk: int (required)
             text: int (required)
-            price: dict {amount: int, currency: int} (required)
+            price: dict {lines: string, amount: string} (required)
             carrier: str (required)
             networks: list (required)
             description: str (required)
             payoff: bool (required)
+            url: str (required)
     Returns:
         plan
     '''

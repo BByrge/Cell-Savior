@@ -125,6 +125,8 @@ def get_date_time(date_time=None):
         return 0
 
 
+
+# The following functions are one time use functions for development purposes only.
 def generate_key_pair():
     '''
     Generate an RSA key pair and save it to disk. This function should never be used in the code.
@@ -159,3 +161,19 @@ def generate_key_pair():
         )
 
     return "Key pair generated and saved to disk."
+
+
+def convert_to_int_db():
+    '''
+    This function is a one time use function for use during development for bugs that cause data to be stored as strings.
+    Check that all values in data, talk, text, and hotspot coloumns are integers in plans.
+    This checks the entire plans table.
+    '''
+    query = client.query(kind='plans')
+    results = list(query.fetch())
+    for plan in results:
+        for field in ['data', 'talk', 'text', 'hotspot']:
+            if not isinstance(plan[field], int):
+                plan[field] = int(plan[field])
+        client.put(plan)
+    return "All values converted to integers."
