@@ -1,8 +1,28 @@
-# Cellular Savior API
+# Cellular Savior REST API
 
-This is the backend API for Cellular Savior, a project designed to assist users in finding and comparing cellular plans.
+**[CellularSavior.com](https://cellularsavior.com)** is a web application designed to help users find the best cellular plan for their needs. By allowing users to compare plans, review detailed information, and receive personalized recommendations based on usage, **Cellular Savior** ultimately aims to provide a **trusted third-party** platform for both consumers and sales representatives to discuss **optimal cellular plans** with **transparency**.
+
+Having worked in cellular sales for five years, I've seen firsthand how people are often taken advantage of—unnecessary fees, overpriced plans, and hidden contract terms are commonplace. **Cellular Savior** seeks to change that. Our goal is to **empower** individuals to make **informed decisions** while helping sales reps align with **honest sales practices**, cutting through the opacity and deceptive tactics that plague the market.
+
+The application is built with Vue.js, Flask, and Google Cloud Platform (GAE, Datastore, OAuth 2.0).
+
+You can find the frontend [here.](https://github.com/BByrge/Cell-Savior)
 
 **Note**: This repository is for demonstration purposes and is not intended for production use. Contact me for access to the production repository.
+
+## API Endpoints (you can use it at https://api.cellularsavior.com/)
+
+- `GET /`: Retrieve the API docs.
+- `GET /auth/initiate`: Initiate OAuth 2.0 authentication.
+- `POST /auth/callback`: Handle OAuth 2.0 callback.
+- `GET /auth/key`: Get public key for JWT verification.
+- `GET /auth/verifyjwt`: Verify JWT token.
+- `GET /plans`: Retrieve all cellular plans.
+- `POST /plans`: Create a new plan (Admin only).
+- `GET /plans/<plan_id>`: Retrieve a specific plan.
+- `PATCH /plans/<plan_id>`: Update a plan (Admin only).
+- `DELETE /plans/<plan_id>`: Delete a plan (Admin only).
+- `POST /recommend`: Get plan recommendations based on user input.
 
 ## Features
 
@@ -10,6 +30,15 @@ This is the backend API for Cellular Savior, a project designed to assist users 
 - Plan recommendation system
 - CRUD operations for cellular plans
 - JWT-based user authorization
+
+## Upcoming Features
+
+- Side-by-side plan comparison
+- Sales rep tools
+- Articles and guides
+
+
+# Installation (for whatever reason)
 
 ## Prerequisites
 
@@ -79,17 +108,3 @@ python frontend_simulator.py
 
 The frontend simulator is available at `http://127.0.0.1:5000/`.
 
-## API Endpoints
-
-- `GET /api/auth/initiate`: Initiate OAuth 2.0 authentication.
-- `POST /api/auth/callback`: Handle OAuth 2.0 callback.
-- `GET /api/plans`: Retrieve all cellular plans.
-- `POST /api/plans`: Create a new plan (Admin only).
-- `GET /api/plans/<plan_id>`: Retrieve a specific plan.
-- `PATCH /api/plans/<plan_id>`: Update a plan (Admin only).
-- `DELETE /api/plans/<plan_id>`: Delete a plan (Admin only).
-- `GET /api/recommend`: Get plan recommendations based on user input.
-
-
-
-## A frontend repository will be released to interact with this API after it is deployed and sanitized.
