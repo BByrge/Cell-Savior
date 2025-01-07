@@ -19,7 +19,7 @@ def set_config():
         'GOOGLE_AUTH_CLIENT_SECRET': environ.get('GOOGLE_AUTH_CLIENT_SECRET'),
         # Note: This needs to match the redirect URI in the Google Cloud Console
         # It can be a list of URIs
-        'GOOGLE_AUTH_REDIRECT_URIS': ['http://127.0.0.1:5000/auth/callback'],
+        'GOOGLE_AUTH_REDIRECT_URIS': ['https://cellularsavior.com/auth/callback'],
         'GOOGLE_AUTH_TOKEN_URI': 'https://oauth2.googleapis.com/token',
         'GOOGLE_AUTH_URI': 'https://accounts.google.com/o/oauth2/auth',
         'GOOGLE_AUTH_SCOPE': 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',

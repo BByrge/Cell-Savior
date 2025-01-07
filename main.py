@@ -25,18 +25,12 @@ ERROR_401 = {"Error": "Unauthorized"}
 ERROR_403 = {"Error": "You don't have permission on this resource"}
 ERROR_404 = {"Error": "Not found"}
 
-SELF_URL = 'http://127.0.0.1:8080/api/'
+SELF_URL = 'https://api.cellularsavior.com/'
 
 client = datastore.Client()
 
-@app.route('/', methods=['GET'])
-def home():
-    '''
-    Home route. This will not be used in the api. 
-    '''
-    return '/api for docs', 200
 
-@app.route('/api', methods=['GET'])
+@app.route('/', methods=['GET'])
 def index():
     '''
     Root for the api. API documentation.
@@ -45,7 +39,7 @@ def index():
 
 
 # Authentication routes
-@app.route('/api/auth/initiate', methods=['GET'])
+@app.route('/auth/initiate', methods=['GET'])
 def auth_initiate():
     '''
     Returns the URL for the user to authenticate with Google. This url contains the client_id, redirect_uri, scope, and state.
@@ -68,7 +62,7 @@ def auth_initiate():
     )
     return jsonify({"url": url, 'state': state}), 200
 
-@app.route('/api/auth/callback', methods=['POST'])
+@app.route('/auth/callback', methods=['POST'])
 def oauth_callback():
     '''
     Callback route for OAuth2.0. This route exchanges the code for tokens and verifies the ID token.
@@ -131,7 +125,7 @@ def oauth_callback():
 
     return jsonify({"id_token": id_token, "user_jwt": user_jwt, "user_info": id_info})  
 
-@app.route('/api/auth/key', methods=['GET'])
+@app.route('/auth/key', methods=['GET'])
 def get_public_key():
     '''
     Get the public key for verifying JWTs.
@@ -141,7 +135,7 @@ def get_public_key():
     public_key = app.config['PUBLIC_KEY']
     return {"key": public_key}, 200
 
-@app.route('/api/auth/verifyjwt', methods=['POST'])
+@app.route('/auth/verifyjwt', methods=['POST'])
 def verify_jwt():
     '''
     Verify a JWT token.
@@ -159,7 +153,7 @@ def verify_jwt():
     return {"valid": valid}, 200
 
 # User routes
-@app.route('/api/plans', methods=['GET'])
+@app.route('/plans', methods=['GET'])
 def get_plans():
     '''
     Get all the plans from the database.
@@ -176,7 +170,7 @@ def get_plans():
 
     return results, 200
 
-@app.route('/api/recommend', methods=['POST'])
+@app.route('/recommend', methods=['POST'])
 def recommend():
     '''
     Get a plan recommendation.
@@ -238,7 +232,7 @@ def recommend():
         i['self'] = f'{SELF_URL}plans/{i.id}'
     return {'results': results}, 200
 
-@app.route('/api/plans/<plan_id>', methods=['GET'])
+@app.route('/plans/<plan_id>', methods=['GET'])
 def get_plan(plan_id):
     '''
     Get a plan by ID.
@@ -258,7 +252,7 @@ def get_plan(plan_id):
 
 
 # Admin only routes.
-@app.route('/api/plans', methods=['POST'])
+@app.route('/plans', methods=['POST'])
 @auth_decorators.admin_required
 def create_plan():
     '''
@@ -299,7 +293,7 @@ def create_plan():
     print(new_plan)
     return new_plan, 201
 
-@app.route('/api/plans/<plan_id>', methods = ['DELETE'])
+@app.route('/plans/<plan_id>', methods = ['DELETE'])
 @auth_decorators.admin_required
 def delete_plan(plan_id):
     '''
@@ -314,7 +308,7 @@ def delete_plan(plan_id):
     client.delete(plan)
     return '', 204
 
-@app.route('/api/plans/<plan_id>', methods=['PATCH'])
+@app.route('/plans/<plan_id>', methods=['PATCH'])
 @auth_decorators.admin_required
 def patch_plan(plan_id):
     '''

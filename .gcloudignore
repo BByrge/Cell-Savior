@@ -31,3 +31,6 @@ venv/
 
 # Resources:
 '/Planning and Diagrams/'
+
+# Simulated frontend:
+frontend_simulator.py
